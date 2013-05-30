@@ -23,6 +23,8 @@ def main():
 
     HOST = sys.argv[1]
     PORT = int(sys.argv[2])
+    HOST_2 = ''
+    PORT_2 = 30020
 
     #Create the socket
     c_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -34,6 +36,11 @@ def main():
     except:
         print 'Unable to establish a connection'
         sys.exit()
+
+    data_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    data_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    data_socket.bind((HOST_2, PORT_2))
+    data_socket.listen(10)
 
     #Set up a receive loop
     while 1:
@@ -69,7 +76,11 @@ def main():
                 try:
                     c_socket.sendall(msg)
                     #Code file receive loop here
-                    new_data = c_socket.recv(4096)
+                    try:
+                        new_data = conn.recv(1024)
+                    except:
+                        conn, addr = data_socket.accept()
+                        new_data = conn.recv(4096)
                     print str(new_data)
                     prompt()
                 except:
@@ -85,12 +96,16 @@ def main():
                     try:
                         c_socket.sendall(msg_all)
                         #Code file receive loop here
-                        new_data = c_socket.recv(4096)
+                        try:
+                            new_data = conn.recv(1024)
+                        except:
+                            conn, addr = data_socket.accept()
+                            new_data = conn.recv(1024)
                         print str(new_data)
                         if new_data == 'Sending File.':
                             downFile = open(file_name, 'wb')
                             while True:
-                                file_data = c_socket.recv(1024)
+                                file_data = conn.recv(1024)
                                 while file_data:
                                     if file_data.endswith("EOFEOFEOFEOFEOFX"):
                                         write_data = file_data[:-16]
@@ -98,11 +113,11 @@ def main():
                                         break
                                     else:
                                         downFile.write(file_data)
-                                        file_data = c_socket.recv(1024)
+                                        file_data = conn.recv(1024)
                                 break
-                        #Close the file and prompt the user
-                        downFile.close()
-                        print 'The file [%s] has been received.' % file_name
+                            #Close the file and prompt the user
+                            downFile.close()
+                            print 'The file [%s] has been received.' % file_name
                         prompt()
                     except:
                         print 'Message failed to send'

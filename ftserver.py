@@ -15,8 +15,10 @@ def getWord(data, pos):
         words.append(word)
     return words[pos]
 
-def clientThread(conn):
+def clientThread(conn, addr):
     #Send a 'Hello' Message to the client
+    HOST = str(addr[0])
+    PORT = 30020
     connect_message = 'You are connected to the server. Operable commands: [list], [get] <filename>, or [exit].'
     conn.send(connect_message)
 
@@ -29,16 +31,24 @@ def clientThread(conn):
         else:
             files_minus_server.append(file)
 
+    data_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
     #Infinite loop
     while True:
         data = conn.recv(1024)
         if data:
             first_word = getWord(data, 0)
             if first_word == 'list':
-                #list directory contents
-                print 'Getting directory contents'
-                str_files = str(files_minus_server).strip('[]')
-                conn.sendall(str(str_files))
+                try:
+                    data_socket.sendall(str(str_files))
+                except:
+                    data_socket.settimeout(2)
+                    data_socket.connect((HOST, PORT))
+                    #list directory contents
+                    print 'Getting directory contents'
+                    str_files = str(files_minus_server).strip('[]')
+                    data_socket.sendall(str(str_files))
+
             elif first_word == 'get':
                 #initiate file transfer
                 second_word = getWord(data, 1)
@@ -46,24 +56,36 @@ def clientThread(conn):
                 for files in only_files:
                     if files == second_word:
                         #File is present in directory
+                        try:
+                            data_socket.sendall('Sending File.')
+                        except:
+                            data_socket.settimeout(2)
+                            data_socket.connect((HOST, PORT))
+                            data_socket.sendall('Sending File.')
+
                         file_check = True
-                        conn.sendall('Sending File.')
+
                         #File Transfer
                         with open(second_word, 'rb') as f:
                             while True:
                                 fileData = f.read()
                                 if fileData == '':
                                     break
-                                conn.sendall(fileData)
+                                data_socket.sendall(fileData)
 
                         #close the connection
                         f.close()
                         time.sleep(0.8)
-                        conn.sendall('EOFEOFEOFEOFEOFX')
+                        data_socket.sendall('EOFEOFEOFEOFEOFX')
                         time.sleep(0.8)
 
                 if file_check == False:
-                    conn.sendall('File not found. Try again.')
+                    try:
+                        data_socket.sendall('File not found. Try again.')
+                    except:
+                        data_socket.settimeout(2)
+                        data_socket.connect((HOST, PORT))
+                        data_socket.sendall('File not found. Try again.')
 
             elif first_word == 'exit':
                 #Close the connection
@@ -81,7 +103,9 @@ def clientThread(conn):
 
     #No data, connection broken
     print 'Client has disconnected'
+    data_socket.close()
     conn.close()
+
 
 
 def main():
@@ -110,7 +134,7 @@ def main():
     while 1:
         conn, addr = s_socket.accept()
         print 'Connected to ' + addr[0]
-        start_new_thread(clientThread, (conn,))
+        start_new_thread(clientThread, (conn, addr))
 
     #Close the socket when finished
     s_socket.close()
